@@ -1,0 +1,28 @@
+{
+  "name": "clocktower-workbuddy",
+  "version": "0.6.11",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "vite build && node scripts/sharecode-assets.mjs && tsc server/game.ts --target ES2022 --module ES2022 --moduleResolution bundler --lib ES2022,DOM --skipLibCheck --outDir server-dist && tsc web/voiceEvents.ts --target ES2022 --module ES2022 --moduleResolution bundler --lib ES2022,DOM --skipLibCheck --outDir server-dist",
+    "start": "node scripts/ensure-build.mjs && node server/index.mjs",
+    "test": "node tests/smoke.mjs && node tests/storage-smoke.mjs && node tests/file-storage-smoke.mjs && node tests/legacy-room.mjs && node tests/roles-order.mjs && node tests/outsiders.mjs && node tests/new-roles.mjs && node tests/demons.mjs && node tests/demon-info.mjs && node tests/group-chat.mjs && node tests/group-api.mjs && node tests/ark-api.mjs && node tests/ark-http.mjs && node tests/qwen-tts.mjs && node tests/volc-tts.mjs && node tests/volc-voice-api.mjs && node tests/voice-api.mjs && node tests/public-claims.mjs && node tests/multiple-nominations.mjs && node tests/debate.mjs && node tests/auto-advance.mjs && node tests/poison-rules.mjs && node tests/dayflow.mjs && node tests/dayflow2.mjs && node tests/kick.mjs && node tests/chef-pairs.mjs && node tests/winner-quiet.mjs && node tests/rules-guide.mjs && node tests/restart.mjs && node tests/realtime.mjs"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "3.18.3",
+    "lucide-react": "1.31.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}

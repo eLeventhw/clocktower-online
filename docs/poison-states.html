@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>钟楼 · 各角色中毒状态表</title>
+<style>
+  :root{
+    --bg:#100f10;--surface:#1a1818;--surface2:#211d1d;--line:#38312d;
+    --gold:#c9ac78;--gold2:#e2c89a;--cream:#ede4d4;--muted:#989086;
+    --red:#c98674;--green:#9dbb8c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:radial-gradient(ellipse at 50% -10%,#241a18 0,#100f10 46%) no-repeat,#100f10;
+    color:var(--cream);font:400 14px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:44px 22px 70px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  .overline{font-size:10px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase}
+  h1{font:500 30px/1.4 "Noto Serif SC",Georgia,serif;letter-spacing:.09em;margin:12px 0 10px}
+  .lead{color:#b9ad9e;font-size:13px;line-height:1.9;margin:0;max-width:820px}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-size:11px;color:#8b8174}
+  .meta b{color:#c2ac8c;font-weight:500}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:30px 0 26px}
+  .card{border:1px solid var(--line);background:var(--surface);padding:16px 18px}
+  .card h3{font:500 12px/1.6 system-ui;letter-spacing:.08em;color:var(--gold2);margin:0 0 8px}
+  .card p{margin:0;font-size:12px;line-height:1.85;color:#a89c8d}
+  .card b{color:#e0cbab;font-weight:500}
+
+  .legend{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.04em;padding:4px 8px;border:1px solid;white-space:nowrap}
+  .c-all{color:#f0b9a9;border-color:#7b4a41;background:#31201d}
+  .c-high{color:#f0d3a3;border-color:#7d6136;background:#2f2719}
+  .c-part{color:#d9c39f;border-color:#5f4d38;background:#28211c}
+  .c-silent{color:#a99d8e;border-color:#4a3f35;background:#241f1b}
+  .c-none{color:#8b8174;border-color:#3c332c;background:#1e1a18}
+
+  h2{font:500 18px/1.5 "Noto Serif SC",Georgia,serif;letter-spacing:.1em;margin:34px 0 4px;color:#e6d6bd}
+  h2 span{font:400 11px/1 system-ui;letter-spacing:.06em;color:#8f8477;margin-left:8px}
+  .hint{font-size:11px;color:#8b8174;margin:6px 0 12px}
+
+  .tablebox{border:1px solid var(--line);background:var(--surface);overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:860px}
+  thead th{
+    text-align:left;font:500 10px/1.4 system-ui;letter-spacing:.12em;color:#a79a89;
+    padding:11px 14px;background:#151313;border-bottom:1px solid #453a31;white-space:nowrap;
+  }
+  tbody td{padding:13px 14px;border-bottom:1px solid #2e2823;vertical-align:top;font-size:12.5px;line-height:1.8;color:#c4b8a8}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:#1f1b18}
+  .role{min-width:132px}
+  .role b{display:block;font:500 13.5px/1.5 system-ui;color:#f0e2cd;letter-spacing:.04em}
+  .role span{display:block;font-size:10px;color:#8b8073;margin-top:3px;letter-spacing:.06em}
+  .must{color:#f2d7a8}
+  .dim{color:#94897b;font-size:11.5px}
+  .prob{white-space:nowrap;font-size:11px;color:#cbbca7}
+  .prob .big{display:block;font-size:13px;color:#f2d7a8;letter-spacing:.02em}
+  .no{color:#9c9184;font-size:11.5px}
+
+  .notes{margin-top:26px;border:1px solid var(--line);background:var(--surface2);padding:20px 22px}
+  .notes h3{font:500 13px/1.6 system-ui;letter-spacing:.06em;color:var(--gold2);margin:0 0 10px}
+  .notes ol,.notes ul{margin:0;padding-left:20px;color:#b0a494;font-size:12px;line-height:1.95}
+  .notes li{margin-bottom:6px}
+  .notes li b{color:#e2cfb2;font-weight:500}
+  .notes li:last-child{margin-bottom:0}
+  code{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d9be95;background:#2a231d;border:1px solid #3f342b;padding:1px 5px}
+  footer{margin-top:26px;font-size:11px;color:#7c7265;line-height:1.9}
+  @media(max-width:860px){
+    body{padding:30px 14px 50px}
+    .cards{grid-template-columns:1fr}
+    h1{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="overline">Clocktower · Rules Reference</div>
+  <h1>各角色中毒状态表</h1>
+  <p class="lead">
+    按当前服务端实现逐角色核对（<code>server/game.ts</code>，v0.6.10）。表中每一条都是代码里真实会走到的分支，不是官方规则的转述；未改动任何代码。
+    中毒不会让能力消失、也不会提示「你被干扰了」——角色照常被唤醒、照常选目标、照常收到一条信息，区别只在信息真假或效果生效与否。
+  </p>
+  <div class="meta">
+    <span>信息造假概率 <b>80%</b> <code>POISON_FALSE_CHANCE=0.8</code></span>
+    <span>毒来源 <b>2 个</b>：投毒者 / 诺-达鲺光环</span>
+    <span>持续 <b>当夜 + 次日白天</b></span>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>毒从哪里来</h3>
+      <p><b>投毒者</b>每夜选一人，从被选当刻起生效，覆盖到第二天白天。<b>诺-达鲺</b>的光环实时计算：左右两侧最近的镇民（跳过外来者与爪牙，死者仍算）。两个来源独立，清掉一个不会误清另一个。</p>
+    </div>
+    <div class="card">
+      <h3>信息怎么变假</h3>
+      <p>服务端先按真实局面构造候选（真 1 条 + 若干条<b>可证伪</b>的假话），再以 80% 概率选假、20% 保留真。假话不会出现「两人真实持有的身份」，AI 只在已校验的候选里挑措辞，改不了真假。</p>
+    </div>
+    <div class="card">
+      <h3>什么时候失效</h3>
+      <p>白天全程有效：管家投票、镇长、圣徒、贞洁者、杀手都按白天的中毒状态判定。当天结束进入下一夜时清空。一次性能力用掉后用毒也补不回来。</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="chip c-all">必定为假 / 必定失效</span>
+    <span class="chip c-high">80% 为假</span>
+    <span class="chip c-part">部分篡改</span>
+    <span class="chip c-silent">静默失效（无信息可看）</span>
+    <span class="chip c-none">无实际影响</span>
+  </div>
+
+  <h2>镇民 <span>13 名</span></h2>
+  <p class="hint">首夜信息类角色在夜序里排在投毒者之后，所以第一夜就会吃到毒；每夜信息类角色同理。</p>
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>角色</th><th>中毒后的表现</th><th>可能得到的结果（全集）</th><th>概率</th><th>玩家能否察觉</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="role"><b>洗衣妇</b><span>首夜 · 二选一线索</span></td>
+          <td>照常收到「A、B 中有一人是某镇民」。<span class="dim">假话沿用同样两个名字，只把角色名换成场上无人持有的镇民。</span></td>
+          <td class="must">真 1 条 + 假 2 条（两条假话指向两个不同的镇民）</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真 · 假各 40%</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>调查员</b><span>首夜 · 二选一线索</span></td>
+          <td>同上。<span class="dim">假话只用「投毒者 / 红唇女郎 / 男爵」中场上没有的名字，不会拿间谍或隐士当假答案。</span></td>
+          <td class="must">真 1 条 + 假 2 条</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真 · 假各 40%</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>图书管理员</b><span>首夜 · 二选一线索</span></td>
+          <td>有外来者时，结构同洗衣妇（假名换成场上没有的外来者）。<span class="dim">场上没有外来者时，假话会变成「A、B 中有一人是外来者」，两人随机。</span></td>
+          <td class="must">「A、B 中有一人是外来者」或「场上没有外来者」</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真</td>
+          <td class="no">无提示；<br>无外来者的局事后可反推</td>
+        </tr>
+        <tr>
+          <td class="role"><b>厨师</b><span>首夜 · 数字</span></td>
+          <td>照常听到「座位相邻的邪恶玩家共有 N 对」，但 N 被换掉。<span class="dim">候选是 0 到「人数 − 1」的每个整数，假话均分到其余数字上。</span></td>
+          <td class="must">真值 + 其余全部整数（例：真 1 对时可能是 0 / 2 / 3 / 4 对）</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>共情者</b><span>每夜 · 0/1/2</span></td>
+          <td>数字被换成另外两个之一。</td>
+          <td class="must">0 / 1 / 2 中除真值外的两个</td>
+          <td class="prob"><span class="big">80% 假</span>假各 40% · 真 20%</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>占卜师</b><span>每夜 · 是/否</span></td>
+          <td>答案直接取反。<span class="dim">红鲱鱼照旧被读成恶魔——中毒只翻转结论，不改变人选与红鲱鱼。</span></td>
+          <td class="must">「是」与「否」对调</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>僧侣</b><span>第二夜起 · 保护</span></td>
+          <td>目标照常选、照常记录，但保护栏是空的，恶魔照样能杀掉那个人。</td>
+          <td class="must">无信息，只有「第二天他死了」这个结果</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默，只能靠死人反推</td>
+        </tr>
+        <tr>
+          <td class="role"><b>士兵</b><span>常驻 · 免死</span></td>
+          <td>免死失效，可以正常被恶魔杀死。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默</td>
+        </tr>
+        <tr>
+          <td class="role"><b>送葬者</b><span>第二夜起 · 身份</span></td>
+          <td>照常看到「昨日被处决者的身份是 X」，X 有 4 个随机假候选（从其余 23 个角色名里取）。</td>
+          <td class="must">真身份 + 4 个随机错误角色名</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真</td>
+          <td class="no">无提示</td>
+        </tr>
+        <tr>
+          <td class="role"><b>杀手</b><span>白天 · 一次性</span></td>
+          <td>宣称照常公开、次数照常扣掉，但无论指谁都不会死，公开播报「没有人因这次能力死亡」。</td>
+          <td class="must">必定失手（与打错人、伪装完全同文）</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">和「空枪 / 冒充」无法区分</td>
+        </tr>
+        <tr>
+          <td class="role"><b>守鸦人</b><span>死亡后 · 验人</span></td>
+          <td>照常选人，但报出的身份<b>一定不是</b>真实角色（从其余 23 个角色里随机）。<span class="dim">毒状态在死亡瞬间快照，白天再解毒也仍按中毒结算。</span></td>
+          <td class="must">23 个错误角色名之一</td>
+          <td class="prob"><span class="big">100% 假</span></td>
+          <td class="no">无提示（唯一「必定为假」的信息能力）</td>
+        </tr>
+        <tr>
+          <td class="role"><b>贞洁者</b><span>白天 · 首次被提名</span></td>
+          <td>能力不触发，提名者不会被处决，投票照常进行；「仅首次」的次数照样用掉。</td>
+          <td class="must">公开文案与「提名者不是镇民」一字不差</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">无法区分「没触发」和「被毒」</td>
+        </tr>
+        <tr>
+          <td class="role"><b>镇长</b><span>夜晚 + 结算</span></td>
+          <td>① 夜里不代死，正常死亡；② 只剩 3 人且当天无人被处决时，不会宣布善良胜利。</td>
+          <td class="must">两条能力都失效</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默（往往死得快）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>外来者 <span>4 名</span></h2>
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>角色</th><th>中毒后的表现</th><th>可能得到的结果（全集）</th><th>概率</th><th>玩家能否察觉</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="role"><b>管家</b><span>白天 · 投票限制</span></td>
+          <td>主人照常记录，但投票限制解除：白天可以不看主人直接投赞成。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默</td>
+        </tr>
+        <tr>
+          <td class="role"><b>酒鬼</b><span>常驻 · 同一套逻辑</span></td>
+          <td>不算中毒，但走完全相同的分支：所有「信息」按 80% 造假，所有能力一律无效（僧侣/士兵/杀手/镇长/圣徒都按失效处理）。</td>
+          <td class="must">与其伪装角色对应的信息，80% 为假</td>
+          <td class="prob"><span class="big">80% 假</span>20% 真</td>
+          <td class="no">永远不知道自己是酒鬼</td>
+        </tr>
+        <tr>
+          <td class="role"><b>隐士</b><span>被识别</span></td>
+          <td>别人中毒不影响他。<b>他自己中毒时</b>，「可能被读成邪恶 / 爪牙 / 恶魔」的随机性消失，一律按真实身份（外来者、善良）读。</td>
+          <td class="must">厨师/共情者读到 0 个邪恶；占卜师与杀手不把他当恶魔；送葬者读到「隐士」</td>
+          <td class="prob"><span class="big">100% 取消随机</span></td>
+          <td class="no">静默</td>
+        </tr>
+        <tr>
+          <td class="role"><b>圣徒</b><span>被处决</span></td>
+          <td>被处决也不触发邪恶胜利——好人白白少了一条「别投他」的理由。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默，且直接改变胜负</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>爪牙 <span>4 名</span></h2>
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>角色</th><th>中毒后的表现</th><th>可能得到的结果（全集）</th><th>概率</th><th>玩家能否察觉</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="role"><b>投毒者</b><span>每夜 · 投毒</span></td>
+          <td>本夜下的毒不生效（目标完全没事）。若毒的是自己，连自己那一份也一起作废，等于空刀。</td>
+          <td class="must">无信息，目标不会被告知</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默；只能看第二天有没有人「运气变差」</td>
+        </tr>
+        <tr>
+          <td class="role"><b>间谍</b><span>每夜 · 魔典</span></td>
+          <td>仍然看到完整魔典，但除自己以外<b>每个人有 1/3 概率</b>被换成别的角色；同时不再标注「中毒」「受保护」。自己那一行永远真实。</td>
+          <td class="must">一张看似正常、约 1/3 行是假的魔典</td>
+          <td class="prob"><span class="big">1/3 每行</span>无「模糊」提示</td>
+          <td class="no">看不出来，只能靠事后对不上号</td>
+        </tr>
+        <tr>
+          <td class="role"><b>红唇女郎</b><span>恶魔死亡时 · 接任</span></td>
+          <td>不接任，恶魔位直接空出（通常当场判善良胜）。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默</td>
+        </tr>
+        <tr>
+          <td class="role"><b>男爵</b><span>开局 · 人数</span></td>
+          <td>没有影响：+2 外来者在发牌那一刻就已经生效，毒无法回溯。</td>
+          <td class="must">—</td>
+          <td class="prob"><span class="big">无影响</span></td>
+          <td class="no">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>恶魔 <span>3 名</span></h2>
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>角色</th><th>中毒后的表现</th><th>可能得到的结果（全集）</th><th>概率</th><th>玩家能否察觉</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="role"><b>小恶魔</b><span>第二夜起 · 袭击</span></td>
+          <td>袭击无效，天亮只播报「昨夜无人死亡」。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默（连续空刀会很可疑）</td>
+        </tr>
+        <tr>
+          <td class="role"><b>方古</b><span>第二夜起 · 袭击</span></td>
+          <td>袭击无效，也不会触发「杀外来者传位」的整套流程。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默</td>
+        </tr>
+        <tr>
+          <td class="role"><b>诺-达鲺</b><span>第二夜起 · 袭击 + 光环</span></td>
+          <td>袭击无效，同时光环消失——两侧最近镇民不再中毒；毒一解除光环立刻恢复。</td>
+          <td class="must">无信息</td>
+          <td class="prob"><span class="big">100% 失效</span></td>
+          <td class="no">静默</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>一页速查 <span>按「中毒后长什么样」归类</span></h2>
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>类型</th><th>角色</th><th>一句话</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="role"><b>必定为假</b></td><td class="must">守鸦人</td><td>唯一 100% 报错身份的信息能力，永远不会撞对。</td></tr>
+        <tr><td class="role"><b>80% 为假</b></td><td class="must">洗衣妇、调查员、图书管理员、厨师、共情者、占卜师、送葬者<br><span class="dim">酒鬼同此档</span></td><td>每 5 次里有 1 次恰好是真话——这是刻意保留的，否则中毒一验就露。</td></tr>
+        <tr><td class="role"><b>部分篡改</b></td><td class="must">间谍</td><td>魔典仍完整，只是逐行 1/3 概率走样，且不显示中毒/保护。</td></tr>
+        <tr><td class="role"><b>静默失效</b></td><td class="must">僧侣、士兵、杀手、贞洁者、镇长、管家、圣徒、投毒者、红唇女郎、小恶魔、方古、诺-达鲺、隐士</td><td>没有假信息，只有「该发生的事没发生」，全靠场上反推。</td></tr>
+        <tr><td class="role"><b>没有影响</b></td><td class="must">男爵</td><td>开局能力，毒不回溯。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="notes">
+    <h3>容易误判的五点</h3>
+    <ol>
+      <li><b>「中毒的人信息还是真的」不是 bug。</b>假话概率是 80%，剩下 20% 刻意给真话；这是规则要求（不可固定 50/50、也不可必定为假）。</li>
+      <li><b>中毒不会提示、不会静音、不会让人「醒不过来」。</b>能力照常被唤醒、照常选择，只有结论或效果变了。</li>
+      <li><b>假话是「可证伪」的，不是把真答案换个名字。</b>例如洗衣妇的假线索不会出现那两人真实持有的身份，事后复盘能查出来是假话，但当时无法分辨。</li>
+      <li><b>一次性能力用掉不恢复。</b>中毒的杀手、贞洁者、守鸦人，解毒后也不会重新获得机会。</li>
+      <li><b>中毒不改变阵营与角色。</b>中毒的恶魔仍然会被占卜师读成「有恶魔」，送葬者也照常读出恶魔身份。</li>
+    </ol>
+  </div>
+
+  <div class="notes">
+    <h3>实现边界（照实记录，本次未改动）</h3>
+    <ul>
+      <li><b>红唇女郎的接任判定</b>只看投毒者写入的毒字段（<code>kill()</code> 里的 <code>p.id!==g.poisonedId</code>）：投毒者毒她时不会接任；若她是被诺-达鲺光环毒到，仍会接任。光环只作用于镇民，实际对局中只有投毒者能毒到她。</li>
+      <li><b>守鸦人的毒状态是死亡瞬间快照</b>（<code>ravenPoisoned</code>），白天再解毒也仍按「中毒」结算，永远是错的。</li>
+      <li><b>送葬者读的是被处决者自己的毒状态</b>：被处决时正在中毒的间谍/隐士，送葬者看到的是真实身份，而不是随机注册结果。</li>
+      <li><b>诺-达鲺光环只找镇民</b>，跳过外来者与爪牙；已死亡的镇民仍然算在环上，位置按座位号走，不按加入顺序。</li>
+      <li><b>旧房间走旧规则</b>：没有 <code>rulesVersion:2</code> 的房间，投毒者/僧侣/恶魔的判定仍是单字段逻辑，中毒信息也不做 80% 处理。新开的房间一律用上表的规则。</li>
+    </ul>
+  </div>
+
+  <footer>
+    数据来源：<code>server/game.ts</code> 中 <code>isPoisoned</code>、<code>nodashiiPoison</code>、<code>deliverInfo</code>、<code>roleInfo</code>、<code>ravenChoose</code>、<code>closeBallot</code>、<code>endDay</code>、<code>useSlayer</code>、<code>nominate</code>。对照版本 v0.6.10，文档生成于 2026-11-05。
+  </footer>
+</div>
+</body>
+</html>
