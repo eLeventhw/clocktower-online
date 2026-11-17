@@ -15,7 +15,8 @@
     "@cloudbase/node-sdk": "3.18.3",
     "lucide-react": "1.31.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
