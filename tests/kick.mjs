@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-const root = '/Users/bytedance/WorkBuddy AI/2026-11-03-11-40-27/clocktower/clocktower-workbuddy';
+// Resolved from this file instead of a hard-coded absolute path: the original pointed
+// at the author's checkout, so these two tests could never run anywhere else.
+const root = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const { newGame, joinGame, perform, view, leaveGame } = await import(root + '/server-dist/game.js?v=' + Date.now());
 
 // 1) The host can clear a seat while the room is still in the lobby.
