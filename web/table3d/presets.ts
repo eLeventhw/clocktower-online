@@ -1,6 +1,7 @@
 // One layout, four lights. The room is chosen from the room code, so every match looks
 // like a different place but never changes halfway through a game; the phase then decides
 // whether that room is lit for day or for night.
+import { NC, GL } from './palette';
 export type RoomPreset = {
   id: string;
   name: string;
@@ -27,7 +28,7 @@ export const ROOMS: RoomPreset[] = [
     stone: '#5a4732',
     wood: '#4c3a29',
     cloth: '#3a2d22',
-    flame: '#e8b76a',
+    flame: 'NC.primary',
   },
   {
     id: 'cellar',

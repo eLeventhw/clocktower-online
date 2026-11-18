@@ -2,6 +2,7 @@
 // read from what stands ON the floor, not from the walls: anything taller than the frame
 // is simply cropped away. So every prop here is deliberately low.
 import * as THREE from 'three';
+import { NC, GL } from './palette';
 
 /** Matte, non-metallic by default. Nothing in this room has a specular highlight. */
 export function matte(color: THREE.ColorRepresentation, roughness = 0.94) {
@@ -196,7 +197,7 @@ export function makeColumn(stone: THREE.ColorRepresentation, height: number) {
 /**
  * A single cast vote, lying on the table.
  *
- * The first version was a 0.15-radius disc, and the "no" face was #2b2419 — three units of
+ * The first version was a 0.15-radius disc, and the "no" face was NC.hairline — three units of
  * nearly-black on a brown tabletop, i.e. invisible at the ~12px this occupies on screen.
  * Two changes make it readable: the disc is bigger and self-lit, and both faces carry a
  * pale rim so the silhouette survives whatever the light is doing.

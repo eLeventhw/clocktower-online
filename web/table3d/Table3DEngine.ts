@@ -12,6 +12,7 @@ import {
 } from './textures';
 import { makeChair, makeBarrel, makeCrate, makeCandle, makeLantern, makeRuinedWall, makeColumn, matte, makeVoteToken } from './props';
 import { roomForCode, lightFor, type PhaseKey } from './presets';
+import { NC, GL } from './palette';
 
 export type SeatView = {
   id: string;
@@ -429,7 +430,7 @@ export class TableEngine {
       // Selection / state ring flat on the table under the card.
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.42, 0.5, 40),
-        new THREE.MeshBasicMaterial({ color: 0xe8b76a, transparent: true, opacity: 0, side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: GL.primary, transparent: true, opacity: 0, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(cardX, TABLE_TOP + 0.012, cardZ);
@@ -437,7 +438,7 @@ export class TableEngine {
 
       const glow = new THREE.Mesh(
         new THREE.CircleGeometry(0.62, 32),
-        new THREE.MeshBasicMaterial({ color: 0xe8b76a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: GL.primary, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
       );
       glow.rotation.x = -Math.PI / 2;
       glow.position.set(cardX, TABLE_TOP + 0.008, cardZ);
@@ -573,7 +574,7 @@ export class TableEngine {
     if (!this.leaderMark) {
       this.leaderMark = new THREE.Mesh(
         new THREE.TorusGeometry(0.72, 0.035, 8, 40),
-        new THREE.MeshBasicMaterial({ color: 0xe8b76a, transparent: true, opacity: 0.75 }),
+        new THREE.MeshBasicMaterial({ color: GL.primary, transparent: true, opacity: 0.75 }),
       );
       this.leaderMark.rotation.x = -Math.PI / 2;
       this.scene.add(this.leaderMark);
@@ -623,8 +624,8 @@ export class TableEngine {
       new THREE.MeshStandardMaterial({
         // A 0.022 tube in gold on a gold-brown table read as a stray hair. The arc is the
         // only clue that a nomination is running, so it gets thickness and a little glow.
-        color: b.stage === 'vote' ? 0xffd9a0 : 0xe4572e,
-        emissive: b.stage === 'vote' ? 0xffd9a0 : 0xe4572e,
+        color: b.stage === 'vote' ? 0xffd9a0 : GL.ember,
+        emissive: b.stage === 'vote' ? 0xffd9a0 : GL.ember,
         emissiveIntensity: 0.55,
         roughness: 0.5,
         metalness: 0.15,
@@ -820,11 +821,11 @@ export class TableEngine {
 
       // Rings: selection is a warm ring, a ballot vote tints it.
       let ringTarget = 0;
-      let ringColor = 0xe8b76a;
+      let ringColor = GL.primary;
       if (p.selected) ringTarget = 0.9;
       else if (p.vote === 'yes') {
         ringTarget = 0.75;
-        ringColor = 0xe8b76a;
+        ringColor = GL.primary;
       } else if (p.vote === 'no') {
         ringTarget = 0.6;
         ringColor = 0x6f6455;
@@ -845,7 +846,7 @@ export class TableEngine {
       // pulled toward the key light, dead ones fade into the table.
       const emissive = 0.045 + (p.selected ? 0.075 : p.speaker ? 0.06 : 0);
       for (const m of rig.cardMats) {
-        m.emissive.setHex(0xe8b76a);
+        m.emissive.setHex(GL.primary);
         m.emissiveIntensity = emissive;
         m.opacity = 1;
         m.transparent = false;

@@ -2,6 +2,7 @@
 // download, no assets to cache-bust. The whole 3D layer stays a single JS bundle, which
 // matters because the deployment gates subresources behind a sharecode.
 import * as THREE from 'three';
+import { NC, GL } from './palette';
 
 const SEAT_NO = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ'];
 
@@ -212,7 +213,7 @@ export function makeCardFront(info: CardInfo) {
     ctx.strokeStyle = 'rgba(232,183,106,0.5)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(W - 152, 46, 106, 40);
-    ctx.fillStyle = '#e8b76a';
+    ctx.fillStyle = 'NC.primary';
     ctx.textAlign = 'center';
     ctx.font = `600 ${Math.round(W * 0.052)}px "PingFang SC", sans-serif`;
     ctx.fillText('你', W - 99, 57);
@@ -230,7 +231,7 @@ export function makeCardFront(info: CardInfo) {
   const longest = Math.max(...lines.map((l) => [...l].length));
   const nameSize = Math.min(W * 0.30, (W * 0.78) / Math.max(1, longest));
   ctx.font = `600 ${Math.round(nameSize)}px "Songti SC", "STSong", Georgia, serif`;
-  ctx.fillStyle = dead ? '#8a7d68' : '#efe6d5';
+  ctx.fillStyle = dead ? '#8a7d68' : 'NC.ink';
   lines.slice(0, 2).forEach((line, i) => {
     ctx.fillText(line, W / 2, H * 0.47 + (i - (lines.length - 1) / 2) * nameSize * 1.18);
   });
@@ -246,7 +247,7 @@ export function makeCardFront(info: CardInfo) {
   // State line.
   const state = dead ? '已死亡' : info.host ? '房主' : '存活';
   ctx.font = `500 ${Math.round(W * 0.062)}px "PingFang SC", sans-serif`;
-  ctx.fillStyle = dead ? '#7a6c59' : info.host ? '#e8b76a' : '#a99a82';
+  ctx.fillStyle = dead ? 'NC.inkFaint' : info.host ? 'NC.primary' : 'NC.inkMuted';
   ctx.fillText(state, W / 2, H * 0.79);
 
   if (!dead && info.ready) {

@@ -1,0 +1,329 @@
+/* ============================================================================
+   theme.nocturne.css — 血染钟楼 × design-library / nocturne（v2.1.0）
+   ----------------------------------------------------------------------------
+   职责：把风格正本 tokens.nocturne.css 接到游戏既有的 styles.css 上，并补齐
+         LAYERS.md 的六层契约里原本缺失的第 3～6 层。
+
+   为什么单独一层：styles.css 里全是布局几何（上一轮刚修好的双栏轨道、
+   聊天输入框高度、落地页首屏 CTA），一个字都不该动。视觉改造只能叠加。
+   加载顺序：tokens.nocturne.css → styles.css → theme.nocturne.css。
+   CSS 自定义属性按计算值解析，与定义先后无关；本文件排在最后是为了让
+   状态与六层的覆盖规则压过 styles.css 里的同特异性声明。
+
+   正本：~/.workbuddy/skills/design-library/styles/nocturne/{DESIGN.md,tokens.css}
+   ========================================================================== */
+
+:root {
+  /* rgba() 用的三元组。值全部来自 nocturne 的色板，不外生新色。 */
+  --nc-canvas-rgb:          11, 10, 9;
+  --nc-surface-sunk-rgb:     7, 6, 6;
+  --nc-surface-rgb:         21, 18, 14;
+  --nc-surface-raised-rgb:  31, 26, 20;
+  --nc-surface-lit-rgb:     51, 41, 29;
+  --nc-ink-rgb:            239, 230, 213;
+  --nc-ink-muted-rgb:      169, 154, 130;
+  --nc-ink-faint-rgb:      122, 108, 89;
+  --nc-hairline-rgb:        43, 36, 25;
+  --nc-hairline-strong-rgb: 68, 56, 38;
+  --nc-primary-rgb:        232, 183, 106;
+  --nc-primary-soft-rgb:    42, 33, 20;
+  --nc-primary-ink-rgb:     26, 18, 6;
+  --nc-ember-rgb:          228, 87, 46;
+
+  /* ---- 第 2 层：界面密度破例 ------------------------------------------------
+     nocturne 是展示型风格，字号阶只有 11/13/16/21/30/42/58。房间 HUD 是
+     数据密集界面，硬套会把上一轮修好的 689px 轨道重新撑爆。
+     按 Floor 5「要阶外值，先补 token 再用」，在这里显式补齐界面档，
+     并把 styles.css 里每一处 font-size 都换成 var(--ct-size-*)。
+     中文界面行高走 1.5（Floor 6 的界面下限），长文段落仍走 1.8。 */
+  /* 小数点不是合法 ident 字符，token 名里用下划线代替 */
+  --ct-size-8: 8px;     --ct-size-9: 9px;     --ct-size-9_5: 9.5px;
+  --ct-size-10: 10px;   --ct-size-10_5: 10.5px;
+  --ct-size-11: 11px;   --ct-size-11_5: 11.5px;
+  --ct-size-12: 12px;   --ct-size-12_5: 12.5px;
+  --ct-size-13: 13px;   --ct-size-13_5: 13.5px;
+  --ct-size-14: 14px;   --ct-size-15: 15px;   --ct-size-16: 16px;
+  --ct-size-17: 17px;   --ct-size-18: 18px;   --ct-size-19: 19px;
+  --ct-size-20: 20px;   --ct-size-21: 21px;   --ct-size-23: 23px;
+  --ct-size-25: 25px;   --ct-size-27: 27px;   --ct-size-28: 28px;
+  --ct-size-34: 34px;   --ct-size-35: 35px;   --ct-size-52: 52px;
+  --ct-leading-ui: 1.5;
+
+  /* ---- 第 4 层：材质体积 --------------------------------------------------
+     DESIGN.md「Elevation & Depth」：一盏顶光，桌面物体没有可读的投影。
+     层级全部由四档底色承担；唯一的方向线索是 1px 上沿受光 + 内收暗边。
+     lightSource: top，steps: 4，separator: border（只用它，不叠阴影）。 */
+  --ct-e1: var(--nc-surface-sunk);    /* 凹槽：输入框、投票计数底 */
+  --ct-e2: var(--nc-surface);         /* 默认面板 */
+  --ct-e3: var(--nc-surface-raised);  /* 一级卡片 / 浮层 */
+  --ct-e4: var(--nc-surface-lit);     /* 光锥正下方，一屏只用一次（弹窗） */
+  --ct-top-light: inset 0 1px 0 rgba(var(--nc-primary-rgb), .06);
+  --ct-inner-line: inset 0 0 0 1px var(--nc-hairline);
+  --ct-inner-line-strong: inset 0 0 0 1px var(--nc-hairline-strong);
+
+  /* ---- 第 5 层：标识与图像 ------------------------------------------------
+     logoType: combo；只写规则不写资产。图片一律方形直边、不叠纹理。 */
+  --ct-logo-rule: 1px solid var(--nc-hairline-strong);
+  --ct-image-radius: var(--nc-radius);
+  --ct-image-ratio: 4 / 3;
+  --ct-image-treatment: none;
+  --ct-empty-state: var(--nc-surface-sunk);
+
+  /* ---- 第 6 层：动效交互 --------------------------------------------------
+     DESIGN.md「Motion & States」：只有状态过渡，不做入场编排。 */
+  --ct-dur-fast: 120ms;
+  --ct-dur-base: var(--nc-dur);        /* 150ms */
+  --ct-ease: var(--nc-ease);
+  --ct-focus-ring: 2px solid var(--nc-primary);
+  --ct-transition:
+    background-color var(--ct-dur-base) var(--ct-ease),
+    color var(--ct-dur-base) var(--ct-ease),
+    border-color var(--ct-dur-base) var(--ct-ease),
+    box-shadow var(--ct-dur-base) var(--ct-ease);
+}
+
+/* ---------------------------------------------------------------------------
+   0 · 基底：风格正本挂在 html 上，但会顺手把 16px/1.8 施加给整个文档。
+   房间 HUD 要的是紧凑可读，这里逐条收回，长文区域单独再放行高。
+   ------------------------------------------------------------------------- */
+html.ds-nocturne {
+  position: static;
+  font-size: var(--ct-size-14);
+  line-height: var(--ct-leading-ui);
+  letter-spacing: normal;
+  /* 暗角只压暗边缘，不提亮中心；alpha 取风格允许区间的下限 0.45 */
+  --nc-vignette-alpha: .45;
+}
+body {
+  line-height: var(--ct-leading-ui);
+  /* 禁则：暗底上行末被暗角吃掉，看起来像被裁掉 */
+  line-break: strict;
+}
+.hero-lead, .entry-intro, .role-desc, .rules-note, .side-note,
+.comp-note, .how-item, .review-day {
+  line-height: var(--nc-leading-body);
+}
+
+/* ---------------------------------------------------------------------------
+   1～2 · 颜色与排版：全部由 styles.css 的 var(--nc-*) 承担，这里只补两条硬约束
+   ------------------------------------------------------------------------- */
+/* 宋体只在 ≥30px 用。品牌字标是 17px，暗底上宋体横画会被吃掉。 */
+.brand b, .brand small, .empty-state strong, .panel-heading,
+.room-heading, .table-center-title, .winner {
+  font-family: var(--nc-font-sans);
+  font-weight: 700;
+}
+.hero h1, .hero .display, .big-title { font-family: var(--nc-font-serif); }
+
+/* 破例留痕：DESIGN.md 的 avoid 明确写了「后台、表单、数据密集的列表」。
+   房间 HUD 正是这类界面。本轮不引第二套风格（Floor 9），但把正本里
+   展示型的全局默认值在 .room-page 内中和掉，只保留色板 / 字体 / 形状 /
+   材质四层。否则 tokens.css 的 h1=58px、p 的 34em 与 24px 段距会把
+   上一轮刚修好的左右轨道重新撑爆。 */
+.room-page :where(h1, h2, h3, h4) {
+  font-family: var(--nc-font-sans);
+  font-weight: 700;
+  letter-spacing: normal;
+  margin: 0 0 var(--nc-space-2);
+}
+.room-page :where(p) {
+  max-width: none;
+  margin: 0 0 var(--nc-space-2);
+  line-height: var(--ct-leading-ui);
+}
+.room-page :where(small) { font-size: var(--ct-size-11); letter-spacing: 0; }
+.room-page :where(hr) { margin: var(--nc-space-3) 0; }
+
+/* ---------------------------------------------------------------------------
+   3 · 组件与状态：default / hover / focus-visible / active / disabled / error
+   ------------------------------------------------------------------------- */
+/* Floor 10：每个交互元素都要有可见焦点。styles.css 里 input 写了 outline:none，
+   这里用 :focus-visible 高优先级补回来，不干扰鼠标点击。 */
+:is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--ct-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--nc-radius-sm);
+}
+:is(button, a, input, select, textarea, .seat, .icon-btn, .modal-close) {
+  transition: var(--ct-transition);
+}
+button:disabled, button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: .42;
+  filter: saturate(.5);
+}
+button:disabled:hover { background: inherit; border-color: inherit; }
+
+/* button-primary：金底暖黑字。悬停不变色，只向内收一圈；按下反色。 */
+.primary {
+  background: var(--nc-primary);
+  color: var(--nc-primary-ink);
+  border: 1px solid var(--nc-primary);
+  border-radius: var(--nc-radius-sm);
+  font-weight: 700;
+}
+.primary:hover:not(:disabled) {
+  background: var(--nc-primary);
+  color: var(--nc-primary-ink);
+  outline: 1px solid var(--nc-primary);
+  outline-offset: -3px;
+}
+.primary:active:not(:disabled) {
+  background: var(--nc-primary-soft);
+  color: var(--nc-primary);
+  outline: none;
+}
+/* 次级 / 幽灵按钮：升一档底色，不动位置、不放大 */
+.secondary, .quiet-button, .ghost, .icon-btn {
+  border-radius: var(--nc-radius-sm);
+  border: 1px solid var(--nc-hairline-strong);
+}
+/* 顶栏两个是纯图标链接（font-size:0），加边框会变成两个突兀的方框。 */
+.text-button, .header-link {
+  border: 0;
+  background: none;
+  border-radius: var(--nc-radius-sm);
+}
+.secondary:hover:not(:disabled), .quiet-button:hover:not(:disabled),
+.ghost:hover:not(:disabled), .icon-btn:hover:not(:disabled) {
+  background: var(--ct-e3);
+  border-color: var(--nc-hairline-strong);
+  color: var(--nc-ink);
+}
+.secondary:active:not(:disabled), .ghost:active:not(:disabled),
+.icon-btn:active:not(:disabled) { background: var(--ct-e1); }
+.text-button:hover:not(:disabled), .header-link:hover:not(:disabled) {
+  color: var(--nc-ink);
+  background: none;
+  border-color: transparent;
+}
+
+/* 输入：e1 凹槽；error 用 ember 且不靠颜色单独表意 */
+.field-label input, .field-label select, .composer input,
+.composer textarea, input[type="text"], input[type="number"] {
+  background: var(--ct-e1);
+  border: 1px solid var(--nc-hairline);
+  border-radius: var(--nc-radius-sm);
+  color: var(--nc-ink);
+  transition: var(--ct-transition);
+}
+.field-label input:hover, .composer input:hover, .composer textarea:hover {
+  border-color: var(--nc-hairline-strong);
+}
+.field-label input:focus, .composer input:focus, .composer textarea:focus,
+.field-label select:focus, input[type="text"]:focus {
+  border-color: var(--nc-primary);
+  outline: none;
+}
+.field-label input:focus-visible, .composer input:focus-visible,
+.composer textarea:focus-visible, .field-label select:focus-visible {
+  outline: var(--ct-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--nc-primary);
+}
+.field-label input[aria-invalid="true"], .error input, .is-error {
+  border-color: var(--nc-ember);
+  box-shadow: inset 0 0 0 1px var(--nc-ember);
+}
+.field-label input::placeholder, .composer input::placeholder,
+.composer textarea::placeholder { color: var(--nc-ink-faint); opacity: 1; }
+
+/* 标签页 / 分段控件：当前项用主光色下划线，不用填充块 */
+.tabs button, .segmented button {
+  color: var(--nc-ink-faint);
+  border-bottom: 1px solid transparent;
+  background: none;
+}
+.tabs button:hover, .segmented button:hover { color: var(--nc-ink-muted); }
+.tabs button.current, .segmented button.current,
+.tabs button[aria-selected="true"], .segmented button[aria-selected="true"] {
+  color: var(--nc-ink);
+  border-bottom-color: var(--nc-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   4 · 材质体积：四档底色 + 上沿受光 + 内收暗边。没有外投影。
+   ------------------------------------------------------------------------- */
+:is(.panel, .entry-card, .players-panel, .action-panel, .conversation,
+       .nominations-panel, .identity-panel, .comp-panel, .class-card,
+       .table-panel, .review-day, .group-picker, .role-reference) {
+  background: var(--ct-e2);
+  border: 1px solid var(--nc-hairline);
+  border-radius: var(--nc-radius);
+  box-shadow: var(--ct-top-light), var(--ct-inner-line);
+}
+:is(.panel, .entry-card, .class-card, .seat, .player-line):hover {
+  box-shadow: var(--ct-top-light), var(--ct-inner-line-strong);
+}
+/* 房间里的玻璃轨是功能性破例：3D 桌面必须能透过来，所以保留 84% 的半透明。
+   但它是平涂，不是渐变；层级仍由上沿受光 + 内收暗边承担。
+   这里必须写到 .room-page .panel 的特异性之上，否则覆盖不住。 */
+html.ds-nocturne .room-page .panel {
+  background: rgba(var(--nc-surface-rgb), .84);
+  border: 1px solid var(--nc-hairline);
+  border-radius: var(--nc-radius);
+  box-shadow: var(--ct-top-light), var(--ct-inner-line);
+}
+/* 悬停只升一档底色，不位移、不放大 */
+.seat:hover, .player-line:hover, .class-card:hover { background: var(--ct-e3); }
+.seat.selected, .seat-clickable.selected, .vote-selected, .current {
+  background: var(--ct-e3);
+  border-color: var(--nc-primary);
+  box-shadow: var(--ct-top-light), inset 0 0 0 1px var(--nc-primary);
+}
+/* 一屏唯一的一档受光面给弹窗 */
+.modal {
+  background: var(--ct-e4);
+  border: 1px solid var(--nc-hairline-strong);
+  border-radius: var(--nc-radius-lg);
+  box-shadow: var(--ct-top-light), var(--ct-inner-line-strong);
+}
+.modal-backdrop { background: rgba(var(--nc-canvas-rgb), .86); }
+/* ember 只标记「正在发生」，一屏最多一次 */
+.ai-live, .vote-clock, .day-clock .current, .toast.is-live {
+  color: var(--nc-ember);
+}
+.dead-tag, .seat-dead { color: var(--nc-ink-faint); text-decoration: line-through; }
+
+/* ---------------------------------------------------------------------------
+   5 · 标识与图像
+   ------------------------------------------------------------------------- */
+/* combo 字标：菱形印记 1px 描边、不缩放不小于 24px，右侧留 0.5em。 */
+.brand-icon {
+  border: var(--ct-logo-rule);
+  color: var(--nc-primary);
+  min-width: 24px;
+  min-height: 24px;
+}
+.brand b { margin-right: .5em; }
+/* 图片：固定比例、方形直边、不叠纹理；空态只用底色 + 一行说明，不放插画。 */
+.art-wrap img, .showcase img, .table-panel img {
+  aspect-ratio: var(--ct-image-ratio);
+  border-radius: var(--ct-image-radius);
+}
+.empty-state {
+  background: var(--ct-empty-state);
+  border: 1px dashed var(--nc-hairline);
+  border-radius: var(--nc-radius-sm);
+  color: var(--nc-ink-faint);
+}
+.empty-state strong { color: var(--nc-ink-muted); }
+.empty-state::before { content: none; }
+
+/* ---------------------------------------------------------------------------
+   6 · 动效交互
+   ------------------------------------------------------------------------- */
+/* 覆盖 styles.css 里散落的 transition:.18s 等裸时长 */
+:is(button, a, input, select, textarea, .seat, .panel, .entry-card,
+       .tabs button, .segmented button) { transition: var(--ct-transition); }
+/* 只有状态过渡，没有入场编排；hover 只改明度，不改位置 */
+:is(button, a, .seat, .panel, .entry-card):hover { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 底色变化是信息，不是动效，保留 */
+}
