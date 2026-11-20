@@ -416,36 +416,62 @@
   .room-page .left-col .role-desc{font-size:var(--ct-size-10_5);line-height:1.7;margin:6px 0 0}
   .room-page .left-col .leave-btn{padding:2px 0 0}
 
-  /* A 597px min-height forced the conversation to overflow the rail; letting it fill
-     the leftover track and scroll its own log is what a chat panel should do.
-     The floor matters: on a 720px-tall window the flexible panel was squeezed to 62px
-     and, with every child shrinking, the tab row collapsed to a single pixel and the
-     composer fell outside the card — the chat became unusable rather than merely
-     short. Below 280px the rail itself scrolls instead. */
-  /* 340, not 280: measured content is 335px (heading + tabs + toolbar + log + composer)
-     and a smaller floor clipped the composer's top edge. */
-  /* The chat keeps a guaranteed height; the cards above it shrink into a scrollable
-     stack instead of pushing the composer past the bottom of the window. */
+  /* ---------------------------------------------------------- right rail height
+     The rail used to be sized by its content. With 60 messages the log grew to ~4500px,
+     the grid's auto row grew with it, and .room-page's overflow:hidden simply cut the
+     composer and every new message out of the window: scrollHeight === clientHeight
+     made the "jump to bottom" button a no-op as well. Nothing inside could scroll
+     because no ancestor had a definite height.
+
+     So give the rail the height the HUD actually has — viewport minus the 76px topbar,
+     the ~146px breadcrumb/heading row and the 18px grid padding, with a little slack.
+     A FIXED height (not just max-height) matters: the percentage caps on the two
+     stacks below resolve against a definite parent height and fall back to `none`
+     against an auto one, which lets the chat eat the whole rail again. */
+  .room-page .right-col{
+    height:calc(100vh - 240px);
+    max-height:calc(100vh - 240px);
+  }
+  /* The cards above the chat shrink into a scrollable stack. 40% keeps the nomination
+     tally and the action card's heading in view on a 900px window; the bottom fade
+     still reads as "there is more, scroll" instead of a card sliced flat. */
   .room-page .right-col .rail-top{
-    flex:0 1 auto;min-height:0;display:flex;flex-direction:column;gap:12px;
+    flex:0 1 auto;min-height:0;max-height:40%;
+    display:flex;flex-direction:column;gap:12px;
     overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
-    /* A card sliced flat by the scrollport looks like a bug; a short fade reads as
-       "there is more, scroll". */
     -webkit-mask-image:linear-gradient(to bottom,var(--nc-surface-sunk) calc(100% - 12px),transparent 100%);
     mask-image:linear-gradient(to bottom,var(--nc-surface-sunk) calc(100% - 12px),transparent 100%);
     padding-bottom:2px;
   }
   .room-page .right-col .panel.conversation{
-    flex:1 1 auto;min-height:300px;overflow:hidden;
+    flex:1 1 auto;min-height:220px;max-height:60%;overflow:hidden;
   }
   /* In the HUD the toolbar row under the tabs ("私聊参与人会公开…" + 创建讨论组) costs
      the message log 39px for a hint that is already stated in the empty state, and the
      group button is duplicated by the shortcuts above it. */
   .room-page .right-col .chat-toolbar{display:none}
   .room-page .right-col .panel.conversation > *{flex:0 0 auto}
-  .room-page .right-col .conversation-body,
-  .room-page .right-col .conversation-content{
-    height:auto;flex:1 1 auto;min-height:60px;overflow-y:auto;
+  /* The message log is the ONLY scrollport. `> *` above is (0,4,0) specificity, so a
+     plain `.conversation-body` rule (0,3,0) lost to `flex:0 0 auto`: the body grew with
+     its messages, the panel's overflow:hidden clipped everything past the fold, and
+     chatRef.scrollHeight === clientHeight made "jump to bottom" a no-op. Re-claim the
+     flex slot with a more specific selector, and min-height:0 so it can actually shrink.
+     The body must itself be a flex column — otherwise the content's `flex` means nothing
+     and height:auto lets the log expand forever. */
+  .room-page .right-col .panel.conversation > .conversation-body{
+    flex:1 1 auto;min-height:0;height:auto;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  /* A full log gives no visual clue that earlier messages are above the fold — the
+     scrollbar is thin and the log otherwise looks like a two-line box. A short fade at
+     the top edge says "scroll up for more" without adding chrome or hiding an action. */
+  .room-page .right-col .conversation-body::after{
+    content:'';position:absolute;left:0;right:0;top:0;height:16px;pointer-events:none;
+    background:linear-gradient(to bottom,var(--nc-surface-raised),transparent);
+  }
+  .room-page .right-col .panel.conversation > .conversation-body > .conversation-content{
+    flex:1 1 auto;min-height:0;height:auto;overflow-y:auto;
+    overscroll-behavior:contain;scrollbar-width:thin;
   }
   /* The action card is the tallest thing in the right rail on a night that needs a
      choice; trimming its padding is what keeps the chat under it on a 900px window. */

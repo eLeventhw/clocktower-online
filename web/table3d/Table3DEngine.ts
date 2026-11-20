@@ -7,6 +7,9 @@
 //     so an orbit still produces a different picture.
 //  2. Depth comes from one key light plus contact shadows, not from glow rings: the
 //     upper edge catches light, the lower edge closes in shadow.
+//  3. The nine seats are the game's information structure. The clockwork is allowed
+//     to be enormous — a giant hand, a dial outside the chairs, a spindle through the
+//     middle — but it must never move a seat. A nomination is amplified, not dissolved.
 import * as THREE from 'three';
 import {
   makeClockTexture, makeCardFront, makeCardBack, makePage, makeBookCover,
@@ -74,6 +77,15 @@ const TABLE_R = 4.3;
 const TABLE_TOP = 0.78;
 const CARD_W = 1.46;
 const CARD_H = 1.84;
+// The clock face is scaled from the verified prototype (its table radius was 6.0).
+// The dial sits outside the chair ring (TABLE_R + 0.66); the hand is lifted above the
+// card tops (TABLE_TOP + CARD_H) so a sweep never erases a name.
+const DIAL_R = 7.2;
+// Lifting the hand does NOT solve name occlusion: a horizontal needle through the
+// centre projects as a line across the seat ring at any height, it just moves which
+// plates it crosses. The fix is a thin precision needle (0.055 wide) with a heavy hub
+// and counterweight, so a sweep can cross a plate without severing its name.
+const HAND_LIFT = 3.4;
 
 export class TableEngine {
   readonly renderer: THREE.WebGLRenderer;
@@ -118,6 +130,16 @@ export class TableEngine {
   private ballotArc?: THREE.Mesh;
   private voteTokens: THREE.Object3D[] = [];
   private leaderMark?: THREE.Mesh;
+
+  // Clock-face furniture. Deliberately outside the seat ring: no seat coordinate,
+  // bearing or neighbour relationship is touched by any of this.
+  private clockworks!: THREE.Group;
+  private seatMarks!: THREE.Group;
+  private handPivot!: THREE.Group;
+  private overheadGears: THREE.Group[] = [];
+  private clockBrass!: THREE.MeshStandardMaterial;
+  private handAngle = Math.PI;
+  private handTarget = Math.PI;
 
   // Camera: spherical around the table, with damped targets and release inertia.
   private cam = { az: 0.3, el: 0.68, r: 16, azT: 0.3, elT: 0.68, rT: 16 };
@@ -298,6 +320,128 @@ export class TableEngine {
     this.buildBook();
     this.scene.add(this.bookGroup);
     this.bookGroup.visible = false;
+
+    this.buildClockworks();
+  }
+
+  /**
+   * The clock-face table: scale is subverted, topology is not. Everything here sits
+   * outside the chair ring or above the card tops, so the nine seats keep their exact
+   * positions, their clockwise order and their shared tabletop.
+   */
+  private buildClockworks() {
+    // No self-illumination on the dial. An evenly glowing ring has no light source and
+    // reads as a flat outline — the exact mistake the table rim was fixed for earlier.
+    // Metalness stays moderate so the fill light can still reach the far side of the
+    // ring; the key light alone decides which part is bright.
+    this.clockBrass = new THREE.MeshStandardMaterial({
+      color: 0x9d7a42, metalness: 0.5, roughness: 0.5,
+    });
+    const handBrass = new THREE.MeshStandardMaterial({
+      color: 0xc9a266, metalness: 0.55, roughness: 0.45,
+      emissive: 0x3a2408, emissiveIntensity: 0.10,
+    });
+    const shared = (m: THREE.Mesh) => { m.userData.sharedMap = true; return m; };
+
+    // 1 · Dial on the floor, outside the chairs. Two rings, twelve hour ticks, four
+    // gear clusters. Each gear has its own spin group so rotation.y is unambiguous.
+    this.clockworks = new THREE.Group();
+    this.scene.add(this.clockworks);
+    const ring = (radius: number, tube: number, y: number) => {
+      const geo = new THREE.TorusGeometry(radius, tube, 10, 96);
+      geo.rotateX(Math.PI / 2);
+      const m = shared(new THREE.Mesh(geo, this.clockBrass));
+      m.position.y = y;
+      m.receiveShadow = true;
+      this.clockworks.add(m);
+    };
+    ring(DIAL_R, 0.16, 0.045);
+    ring(DIAL_R - 1.35, 0.055, 0.04);
+
+    // Only the arc nearest the key light catches a brighter lip. The rest of the dial
+    // falls off with the spotlight, so night actually darkens the outer ring.
+    // Torus angle phi maps straight to the XZ bearing after rotateX(PI/2); the key
+    // light sits at (-7.5, 15, 7.0), bearing atan2(7, -7.5) ~= 2.39 rad.
+    const litArcGeo = new THREE.TorusGeometry(DIAL_R, 0.185, 10, 64, 1.9);
+    litArcGeo.rotateZ(1.44);
+    litArcGeo.rotateX(Math.PI / 2);
+    const litArc = shared(new THREE.Mesh(litArcGeo, new THREE.MeshStandardMaterial({
+      color: 0xc6a061, metalness: 0.72, roughness: 0.34,
+    })));
+    litArc.position.y = 0.055;
+    this.clockworks.add(litArc);
+
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * TAU;
+      const tick = shared(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.92), this.clockBrass));
+      tick.position.set(Math.cos(a) * (DIAL_R - 0.62), 0.055, Math.sin(a) * (DIAL_R - 0.62));
+      tick.rotation.y = -a;
+      tick.castShadow = true;
+      this.clockworks.add(tick);
+    }
+
+    for (let k = 0; k < 4; k++) {
+      const spin = new THREE.Group();
+      const R = 1.02 + (k % 2) * 0.42;
+      const hoopGeo = new THREE.TorusGeometry(R, 0.13, 8, 30);
+      hoopGeo.rotateX(Math.PI / 2);
+      spin.add(shared(new THREE.Mesh(hoopGeo, this.clockBrass)));
+      for (let s = 0; s < 5; s++) {
+        const spoke = shared(new THREE.Mesh(new THREE.BoxGeometry(R * 1.8, 0.08, 0.13), this.clockBrass));
+        spoke.rotation.y = (s / 5) * Math.PI;
+        spin.add(spoke);
+      }
+      spin.position.set(Math.cos(k * 1.7) * (DIAL_R - 1.2), 0.06, Math.sin(k * 1.7) * (DIAL_R - 1.2));
+      this.clockworks.add(spin);
+      this.overheadGears.push(spin);
+    }
+
+    this.seatMarks = new THREE.Group();
+    this.scene.add(this.seatMarks);
+
+    // 2 · Spindle ties the tabletop to the hand. Thin on purpose: the nomination arc
+    // passes through the middle of the table at TABLE_TOP + 0.6.
+    const spindleH = HAND_LIFT - TABLE_TOP;
+    const spindle = shared(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.085, 0.13, spindleH, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0x5c4728, metalness: 0.8, roughness: 0.45,
+        emissive: 0x241606, emissiveIntensity: 0.3,
+      }),
+    ));
+    spindle.position.y = TABLE_TOP + spindleH / 2;
+    this.scene.add(spindle);
+
+    // 3 · A ~10m brass hand, lifted above the card tops. Points along -Z; the hub
+    // ring and counterweight make it read as a machine part rather than a floating bar.
+    this.handPivot = new THREE.Group();
+    this.handPivot.position.y = HAND_LIFT;
+    this.handPivot.rotation.y = this.handAngle;
+    this.scene.add(this.handPivot);
+    const hand = shared(new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 7.4), handBrass));
+    hand.position.z = -3.45;
+    hand.castShadow = true;
+    this.handPivot.add(hand);
+    // A thin needle on its own reads as a stray hair, so it gets riveted index blocks
+    // along the shaft and a heavy arrowhead on the outer ring. The blocks give the
+    // giant scale a readable rhythm without widening the line over the name plates.
+    for (let k = 1; k <= 6; k++) {
+      const stud = shared(new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.10, 0.10), handBrass));
+      stud.position.z = -k * 1.05;
+      this.handPivot.add(stud);
+    }
+    const tip = shared(new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.20, 12), handBrass));
+    tip.rotation.x = -Math.PI / 2;
+    tip.position.z = -7.75;
+    tip.castShadow = true;
+    this.handPivot.add(tip);
+    const counter = shared(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.075, 1.9), handBrass));
+    counter.position.z = 1.05;
+    this.handPivot.add(counter);
+    this.handPivot.add(shared(new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.18, 32), handBrass)));
+    const hubRingGeo = new THREE.TorusGeometry(0.62, 0.055, 8, 40);
+    hubRingGeo.rotateX(Math.PI / 2);
+    this.handPivot.add(shared(new THREE.Mesh(hubRingGeo, handBrass)));
   }
 
   private buildBook() {
@@ -516,6 +660,22 @@ export class TableEngine {
     this.pickables = this.pickables.filter((o) => o.userData.kind !== 'seat');
     this.seatOrder = ids;
 
+    // Seat marks are rebuilt from the SAME angle formula as the seats themselves.
+    // They are decoration on the floor, never a reason to reposition a seat.
+    for (const m of [...this.seatMarks.children]) {
+      this.seatMarks.remove(m);
+      disposeTree(m);
+    }
+    const markN = Math.max(state.players.length, 5);
+    state.players.forEach((_, i) => {
+      const a = (i / markN) * TAU + Math.PI / 2 + TAU / (markN * 4);
+      const mark = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.55), this.clockBrass);
+      mark.position.set(Math.cos(a) * (TABLE_R + 1.05), 0.055, Math.sin(a) * (TABLE_R + 1.05));
+      mark.rotation.y = -a;
+      mark.userData.sharedMap = true;
+      this.seatMarks.add(mark);
+    });
+
     const room = roomForCode(state.code);
     const n = Math.max(state.players.length, 5);
     const rCard = TABLE_R * 0.9;
@@ -655,6 +815,7 @@ export class TableEngine {
     this.updateBallot(state);
     this.updateSpeaker(state);
     this.updateLeader(state);
+    this.updateClockHand(state);
   }
 
   private updateBook(state: TableState) {
@@ -744,6 +905,26 @@ export class TableEngine {
     this.leaderMark.visible = true;
   }
 
+  /**
+   * The hand stops at the nominee's tick. When no nomination is running it follows the
+   * speaker, then the vote leader, then returns to a neutral bearing. Nomination keeps
+   * its arc and its tokens — the hand adds scale to the moment instead of replacing it.
+   */
+  private updateClockHand(state: TableState) {
+    const target = state.ballot?.nominee
+      ?? state.players.find((p) => p.speaker)?.id
+      ?? state.players.find((p) => p.leader)?.id;
+    const rig = target ? this.seats.get(target) : undefined;
+    if (!rig) {
+      this.handTarget = Math.PI;
+      return;
+    }
+    // The hand points along -Z after a y-rotation of theta, i.e. (-sin(theta), -cos(theta)).
+    // For a seat at bearing a = atan2(z, x), theta = -a - PI/2.
+    const a = Math.atan2(rig.hold.position.z, rig.hold.position.x);
+    this.handTarget = -a - Math.PI / 2;
+  }
+
   /** During a ballot: an arc between the two chairs, and one token per cast vote. */
   private updateBallot(state: TableState) {
     const b = state.ballot;
@@ -785,7 +966,9 @@ export class TableEngine {
         // only clue that a nomination is running, so it gets thickness and a little glow.
         color: b.stage === 'vote' ? 0xffd9a0 : GL.ember,
         emissive: b.stage === 'vote' ? 0xffd9a0 : GL.ember,
-        emissiveIntensity: 0.55,
+        // The ballot arc is a physical ribbon in the room, not a HUD overlay: at night
+        // it has to dim with everything else or it burns through the nomination focus.
+        emissiveIntensity: state.phase === 'night' ? 0.22 : 0.55,
         roughness: 0.5,
         metalness: 0.15,
         transparent: true,
@@ -928,11 +1111,22 @@ export class TableEngine {
     this.applyCamera(dt);
     this.animateSeats(dt);
     this.animateBook(dt);
+    this.animateClockworks(dt);
     if (this.leaderMark?.visible) {
       const s = 1 + Math.sin(performance.now() * 0.0022) * 0.03;
       this.leaderMark.scale.setScalar(s);
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private animateClockworks(dt: number) {
+    // Shortest angular path, so a hand crossing the +/-PI seam never spins the long way.
+    const delta = ((this.handTarget - this.handAngle + Math.PI * 3) % TAU) - Math.PI;
+    this.handAngle += delta * Math.min(1, dt * 2.4);
+    this.handPivot.rotation.y = this.handAngle;
+    for (let i = 0; i < this.overheadGears.length; i++) {
+      this.overheadGears[i].rotation.y += dt * (i % 2 ? -1 : 1) * 0.09;
+    }
   }
 
   private animateSeats(dt: number) {
@@ -1100,12 +1294,17 @@ function ease(t: number) {
 }
 
 function disposeTree(obj: THREE.Object3D) {
+  // The clockwork shares one brass material across a dozen meshes. Dispose it once,
+  // not once per mesh, or the later meshes are released against an already-dead GPU program.
+  const seen = new Set<THREE.Material>();
   obj.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (mesh.isMesh) {
       mesh.geometry?.dispose();
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats) {
+        if (seen.has(m)) continue;
+        seen.add(m);
         const std = m as THREE.MeshStandardMaterial;
         // AO and glow quads share textures owned by the engine. Disposing one here
         // would blank every other shadow in the room.
