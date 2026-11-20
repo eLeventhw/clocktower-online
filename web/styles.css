@@ -263,6 +263,22 @@
        behind the action panel instead of sitting above it. */
     min-height:0;
   }
+  /* theme.nocturne.css paints every surface with :is(.panel, …, .table-panel, …).
+     That selector has the same specificity as `.table-panel` but is loaded later, so it
+     silently restores the opaque background, border, radius and inset shadow — turning
+     this transparent frame into a ~760x670 panel that hides the entire 3D table on wide
+     screens. Lift the specificity here instead of removing .table-panel from the theme
+     (it still needs a real surface in the <=1100px in-flow layout). */
+  .room-page .middle-col .table-panel,
+  html.ds-nocturne .room-page .middle-col .table-panel,
+  .room-page .middle-col .table-panel:hover{
+    background:none;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+  }
   .table-panel .table-top,.table-panel .table-bottom{
     background:rgba(var(--nc-surface-rgb),.66);
     -webkit-backdrop-filter:blur(12px);
