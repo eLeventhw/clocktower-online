@@ -1,0 +1,121 @@
+/* 视觉色板来自 design-library / nocturne，变量见 web/tokens.nocturne.css。
+   canvas 内部的材质色由 web/table3d/palette.ts 单点维护。
+
+   The table is the page, not a widget inside it.
+   On a wide screen the canvas is pinned to the viewport and every panel floats over
+   it; the old 287px box made a name card ~40px tall, which is the whole reason this
+   style exists. Narrow screens fall back to an in-flow block, because a fixed canvas
+   plus a scrolling HUD is unusable on a phone. */
+
+.table3d-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Narrow screens: the stage is the first child of the room page, so it simply sits at
+   the top of the column and the rest of the page scrolls under it. */
+@media (max-width: 1100px) {
+  .table3d-stage {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    height: 420px;
+    margin-bottom: 16px;
+  }
+}
+@media (max-width: 760px) {
+  .table3d-stage {
+    height: 340px;
+  }
+}
+
+/* The wrapper keeps the legacy .table-visual sizing rules from fighting the stage. */
+.table3d-stage .table-visual.table3d-host {
+  height: 100%;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--nc-canvas);
+}
+@media (max-width: 1100px) {
+  .table3d-stage .table-visual.table3d-host {
+    border-radius: var(--nc-radius-sm);
+  }
+}
+
+.table3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Pointer events drive orbit and picking; the browser must not steal the gesture. */
+  touch-action: none;
+  outline: none;
+}
+
+.table3d-legend {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 6px;
+  font-size: var(--ct-size-10);
+  letter-spacing: 0.04em;
+  color: var(--nc-ink-faint);
+  pointer-events: none;
+  transition: color var(--nc-dur) var(--nc-ease);
+  white-space: nowrap;
+}
+
+/* On a wide screen the grimoire is a real object on the table and can be clicked, so a
+   second floating button would only cover the scene. It stays for the small layout,
+   where the table is a block and there is nothing to click through. */
+.table3d-book {
+  position: absolute;
+  right: 14px;
+  bottom: 9px;
+  background: rgba(var(--nc-primary-rgb), .1);
+  border: 1px solid rgba(var(--nc-primary-rgb), .34);
+  color: var(--nc-primary);
+  font-family: inherit;
+  font-size: var(--ct-size-11);
+  letter-spacing: 0.02em;
+  padding: 5px 12px;
+  border-radius: var(--nc-radius-sm);
+  cursor: pointer;
+  transition: background var(--nc-dur) var(--nc-ease), border-color var(--nc-dur) var(--nc-ease);
+}
+.table3d-book:hover {
+  background: rgba(var(--nc-primary-rgb), .18);
+  border-color: rgba(var(--nc-primary-rgb), .6);
+}
+@media (min-width: 1101px) {
+  .table3d-book {
+    display: none;
+  }
+}
+
+.table3d-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+  color: var(--nc-ink-muted);
+}
+.table3d-fallback b {
+  color: var(--nc-ink);
+  font-size: var(--ct-size-13);
+  font-weight: 700;
+}
+.table3d-fallback p {
+  margin: 0;
+  font-size: var(--ct-size-11);
+  line-height: 1.7;
+  max-width: 30em;
+}

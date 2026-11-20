@@ -1,1 +1,16 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="与朋友围坐一桌，在钟声与谎言之间找到真相。"/><title>钟楼纪事 | AI 说书人</title></head><body><div id="root"></div><script type="module" src="/web/main.tsx"></script></body></html>
+<!doctype html><html lang="zh-CN" class="ds-nocturne ds-nocturne-page"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="与朋友围坐一桌，在钟声与谎言之间找到真相。"/><title>钟楼纪事 | AI 说书人</title><style>
+/* Painted before the ~800KB bundle arrives: without this the first thing a visitor sees is
+   a blank dark sheet for several seconds on a cold load. */
+/* 启动闪屏必须先于约 800KB 的 bundle 上屏，那时 tokens.nocturne.css 还没加载，
+   只能内联一份最小色板。下面六个值与风格正本一一对应，改正本时须同步这里。 */
+:root{--boot-canvas:#0B0A09;--boot-surface:#1F1A14;--boot-key:#E8B76A;--boot-ink:#EFE6D5;--boot-faint:#7A6C59;--boot-line:#443826}
+html,body{background:var(--boot-canvas);margin:0}
+#boot{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 42%,var(--boot-surface) 0,var(--boot-canvas) 62%);color:var(--boot-key);font-family:'PingFang SC','Noto Sans SC',sans-serif;z-index:9999}
+#boot .b-inner{text-align:center}
+#boot .b-ring{width:64px;height:64px;margin:0 auto 22px;border:1px solid var(--boot-line);border-radius:50%;display:grid;place-items:center;position:relative;color:var(--boot-ink);font-size:22px}
+#boot .b-ring::after{content:'';position:absolute;inset:-9px;border:1px solid rgba(68,56,38,.34);border-radius:50%;animation:b-pulse 2.4s ease-in-out infinite}
+@keyframes b-pulse{0%,100%{opacity:.25;transform:scale(.96)}50%{opacity:.7;transform:scale(1.04)}}
+#boot b{display:block;font-family:'Songti SC','Noto Serif SC',serif;font-size:17px;letter-spacing:.02em;color:var(--boot-ink);font-weight:700}
+#boot small{display:block;margin-top:9px;font-size:10px;letter-spacing:.02em;color:var(--boot-faint)}
+@media (prefers-reduced-motion:reduce){#boot .b-ring::after{animation:none}}
+</style></head><body><div id="root"><div id="boot"><div class="b-inner"><div class="b-ring">☾</div><b>钟楼纪事</b><small>正在点亮烛火…</small></div></div></div><script type="module" src="/web/main.tsx"></script></body></html>
