@@ -2,13 +2,15 @@
 // state lives in this file, so the 3D layer can never disagree with the rules.
 //
 // Two rules shape the whole thing:
-//  1. Cards are fixed objects, never billboards. If every card turned to face the camera,
-//     every orbit would render identical pixels and the room would stop existing.
-//  2. Depth comes from light, not from drop shadows: one key light, four falloff steps.
+//  1. Cards are physical plates — metal back, wooden foot, contact shadow. They face
+//     roughly the viewer because nine names must stay legible, but fan out by seat angle
+//     so an orbit still produces a different picture.
+//  2. Depth comes from one key light plus contact shadows, not from glow rings: the
+//     upper edge catches light, the lower edge closes in shadow.
 import * as THREE from 'three';
 import {
   makeClockTexture, makeCardFront, makeCardBack, makePage, makeBookCover,
-  makeFloorTexture, makeStoneTexture,
+  makeFloorTexture, makeStoneTexture, makeGrainTexture, makeAOTexture, makeGlowTexture,
 } from './textures';
 import { makeChair, makeBarrel, makeCrate, makeCandle, makeLantern, makeRuinedWall, makeColumn, matte, makeVoteToken } from './props';
 import { roomForCode, lightFor, type PhaseKey } from './presets';
@@ -63,6 +65,8 @@ type SeatRig = {
   ringLevel: number;
   targetable: boolean;
   textureKey: string;
+  angle: number; // seat bearing from the table centre, used by the fan-out
+  shadow: THREE.Mesh; // contact shadow on the tabletop, in world space
 };
 
 const TAU = Math.PI * 2;
@@ -90,6 +94,9 @@ export class TableEngine {
   private speakerLight!: THREE.SpotLight;
   private lanternLight!: THREE.PointLight;
   private tableMat!: THREE.MeshStandardMaterial;
+  private aoTex!: THREE.Texture;
+  private glowTex!: THREE.Texture;
+  private grainTex!: THREE.Texture;
 
   private seats = new Map<string, SeatRig>();
   private seatOrder: string[] = [];
@@ -130,7 +137,7 @@ export class TableEngine {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.28;
+    this.renderer.toneMappingExposure = 1.52;
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(0x14100b, 0.03);
@@ -140,28 +147,55 @@ export class TableEngine {
     this.applyCamera(1);
   }
 
+  /**
+   * Fake AO: one soft quad laid on the ground. Cheaper than SSAO and, unlike a child of
+   * the prop, it does not inherit the prop's rotation and end up floating in mid-air.
+   */
+  private addContactShadow(parent: THREE.Object3D, r: number, opacity: number, x = 0, y = 0.012, z = 0) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(r * 2, r * 2),
+      new THREE.MeshBasicMaterial({
+        map: this.aoTex, transparent: true, opacity, depthWrite: false, fog: false,
+      }),
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.renderOrder = 1;
+    m.userData.sharedMap = true;
+    parent.add(m);
+    return m;
+  }
+
   // ------------------------------------------------------------------ build
   private build() {
-    this.ambient = new THREE.AmbientLight(0x53422e, 0.58);
+    this.aoTex = makeAOTexture();
+    this.glowTex = makeGlowTexture();
+    this.grainTex = makeGrainTexture();
+
+    // One key light, upper-left-front. Everything else is a bounce rather than another
+    // direction: independent point lights were what made the old frame read as several
+    // unrelated pools of light with conflicting highlights.
+    this.ambient = new THREE.AmbientLight(0x53422e, 0.22);
     this.scene.add(this.ambient);
-    this.hemi = new THREE.HemisphereLight(0x8fa6d8, 0x1a1510, 0.35);
+    this.hemi = new THREE.HemisphereLight(0x8fa6d8, 0x1a1510, 0.18);
     this.scene.add(this.hemi);
 
     // decay = 0: three r155+ defaults to physical falloff (candela, 1/r²), which leaves
     // nothing beyond a few units and renders an almost black frame. Turning falloff off
     // keeps the intensity numbers readable while the fog and the surface tiers carry the
     // sense of distance.
-    this.keyLight = new THREE.SpotLight(0xffd8a2, 3.2, 0, 0.82, 0.85, 0);
-    this.keyLight.position.set(1.6, 13, 5.2);
+    this.keyLight = new THREE.SpotLight(0xffd8a2, 5.2, 0, 0.50, 0.68, 0);
+    this.keyLight.position.set(-7.5, 15, 7.0);
     this.keyLight.target.position.set(0, 0, 0);
     this.keyLight.castShadow = true;
-    this.keyLight.shadow.mapSize.set(1024, 1024);
+    this.keyLight.shadow.mapSize.set(2048, 2048);
     this.keyLight.shadow.camera.near = 2;
-    this.keyLight.shadow.camera.far = 40;
-    this.keyLight.shadow.bias = -0.0012;
+    this.keyLight.shadow.camera.far = 42;
+    this.keyLight.shadow.bias = -0.0006;
+    this.keyLight.shadow.radius = 2;
     this.scene.add(this.keyLight, this.keyLight.target);
 
-    this.rimLight = new THREE.PointLight(0xffd8a2, 0.55, 0, 0);
+    this.rimLight = new THREE.PointLight(0xffd8a2, 0.22, 0, 0);
     this.rimLight.position.set(-5, 3.4, -4.4);
     this.scene.add(this.rimLight);
 
@@ -176,23 +210,81 @@ export class TableEngine {
     this.lanternLight.position.set(0, 5.88, 0);
     this.scene.add(this.lanternLight);
 
-    // Table: a cylinder so the edge has thickness, with the clock face on top.
-    const tableGeo = new THREE.CylinderGeometry(TABLE_R, TABLE_R * 0.985, TABLE_TOP, 72);
-    const side = matte('#241a12', 0.96);
+    // Table as three layers: a dark wooden body, a separately lit dial, and a brass rim.
+    // Sharing one material across the cylinder and its cap made the dial inherit the
+    // side's darkness; keeping them apart lets the top catch the key light on its own.
+    const tableGeo = new THREE.CylinderGeometry(TABLE_R, TABLE_R * 0.97, TABLE_TOP, 96);
+    const side = matte('#1d1611', 0.88);
+    side.bumpMap = this.grainTex;
+    side.bumpScale = 0.02;
     this.tableMat = new THREE.MeshStandardMaterial({
       map: makeClockTexture(),
-      roughness: 0.9,
-      metalness: 0.02,
+      roughness: 0.62,
+      metalness: 0.14,
+      bumpMap: this.grainTex,
+      bumpScale: 0.02,
     });
-    const table = new THREE.Mesh(tableGeo, [side, this.tableMat, side]);
+    const table = new THREE.Mesh(tableGeo, [side, side, side]);
     table.position.y = TABLE_TOP / 2;
     table.receiveShadow = true;
+    table.castShadow = true;
     this.scene.add(table);
     this.roomKeyMesh = table;
 
+    const dial = new THREE.Mesh(new THREE.CircleGeometry(TABLE_R * 0.995, 96), this.tableMat);
+    dial.rotation.x = -Math.PI / 2;
+    dial.position.y = TABLE_TOP + 0.004;
+    dial.receiveShadow = true;
+    this.scene.add(dial);
+
+    // PBR metal, not an emissive ring. Only the arc nearest the key light gets a brighter
+    // lip: a full glowing circle announces that nothing in the scene has a light source.
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(TABLE_R * 0.997, 0.055, 12, 160),
+      new THREE.MeshStandardMaterial({ color: 0x6d5433, metalness: 0.88, roughness: 0.38 }),
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = TABLE_TOP + 0.004;
+    rim.castShadow = true;
+    this.scene.add(rim);
+
+    // Only a short arc on the key-light side is brighter, and it sits flush with the rim.
+    // A thicker, raised arc read as a detached golden wire floating over the tabletop.
+    const rimArcGeo = new THREE.TorusGeometry(TABLE_R * 0.997, 0.012, 8, 96, 2.2);
+    rimArcGeo.rotateZ(1.16);
+    const rimArc = new THREE.Mesh(
+      rimArcGeo,
+      new THREE.MeshStandardMaterial({ color: 0xb08c52, metalness: 0.85, roughness: 0.32 }),
+    );
+    rimArc.rotation.x = Math.PI / 2;
+    rimArc.position.set(0, TABLE_TOP + 0.014, 0);
+    this.scene.add(rimArc);
+
+    const rimLow = new THREE.Mesh(
+      new THREE.TorusGeometry(TABLE_R * 0.972, 0.026, 8, 160),
+      new THREE.MeshStandardMaterial({ color: 0x120d09, metalness: 0.3, roughness: 0.9 }),
+    );
+    rimLow.rotation.x = Math.PI / 2;
+    rimLow.position.y = 0.03;
+    this.scene.add(rimLow);
+
+    this.addContactShadow(this.scene, TABLE_R * 1.4, 0.9, 0, 0.012, 0);
+
+    const floorTex = makeFloorTexture('#6d655c');
     this.floor = new THREE.Mesh(
       new THREE.CircleGeometry(26, 64),
-      new THREE.MeshStandardMaterial({ map: makeFloorTexture('#6d655c'), roughness: 1, metalness: 0 }),
+      new THREE.MeshStandardMaterial({
+        map: floorTex,
+        roughness: 0.94,
+        metalness: 0,
+        bumpMap: floorTex,
+        bumpScale: 0.05,
+        // The same texture modulates its own emissive: stone faces stay faintly readable
+        // in the dark while the deep joints stay black.
+        emissive: 0x8a7a62,
+        emissiveMap: floorTex,
+        emissiveIntensity: 0.55,
+      }),
     );
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.receiveShadow = true;
@@ -283,8 +375,11 @@ export class TableEngine {
     this.ambient.intensity = light.ambIntensity;
     this.keyLight.color.setHex(light.key);
     this.keyLight.intensity = light.keyIntensity;
+    // Night narrows the cone instead of dimming the whole room: the table stays the one
+    // lit thing in the frame rather than everything going uniformly grey.
+    this.keyLight.angle = light.keyAngle;
     this.rimLight.color.setHex(light.rim);
-    this.rimLight.intensity = light.candles ? 0.75 : 0.4;
+    this.rimLight.intensity = light.candles ? 0.24 : 0.14;
     this.lanternLight.color.setHex(light.lamp);
     this.lanternLight.intensity = light.lampIntensity;
     // The hemisphere light was previously fixed at its build value, which left a cold blue
@@ -292,20 +387,28 @@ export class TableEngine {
     // wrong rim. Tinting it from the room keeps the four rooms actually distinct.
     this.hemi.color.setHex(light.key);
     this.hemi.groundColor.setHex(light.fog);
-    this.hemi.intensity = light.candles ? 0.12 : 0.3;
+    this.hemi.intensity = light.candles ? 0.08 : 0.16;
 
     const floorMat = this.floor.material as THREE.MeshStandardMaterial;
-    floorMat.map?.dispose();
-    floorMat.map = makeFloorTexture(room.floor);
+    const prevFloor = floorMat.map;
+    const floorTex = makeFloorTexture(room.floor);
     // One 1024px texture stretched over a 26-unit disc makes each flagstone roughly eight
     // chairs wide — it reads as a jigsaw, not as a floor. Five repeats put a stone at about
     // 1.3 units, which is the size a chair's footprint implies.
-    floorMat.map.wrapS = floorMat.map.wrapT = THREE.RepeatWrapping;
-    floorMat.map.repeat.set(5, 5);
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(5, 5);
+    floorMat.map = floorTex;
+    floorMat.bumpMap = floorTex;
+    floorMat.bumpScale = 0.05;
+    floorMat.emissiveMap = floorTex;
+    floorMat.emissive.setHex(0x8a7a62);
+    floorMat.emissiveIntensity = light.candles ? 0.42 : 0.55;
     // A light floor kills the whole effect: the room reads as a bright tiled stage and
-    // the table stops being the only lit thing in the frame.
-    floorMat.color.setHex(light.candles ? 0x3c3c46 : 0x5c5850);
+    // the table stops being the only lit thing in the frame. But too dark and the stone
+    // becomes a black void — the emissive map above is what keeps the joints readable.
+    floorMat.color.setHex(light.candles ? 0x4a5060 : 0xa89c88);
     floorMat.needsUpdate = true;
+    prevFloor?.dispose();
 
     // Furniture is cheap to rebuild and only changes with the room, not with every frame.
     for (const child of [...this.furniture.children]) {
@@ -321,6 +424,8 @@ export class TableEngine {
     // must read as a silhouette that breaks the void behind the table — not as a lit wall.
     // Anything lighter and the eye goes to the rubble instead of the table.
     stoneMat.color.setHex(0x141418);
+    stoneMat.bumpMap = this.grainTex;
+    stoneMat.bumpScale = 0.03;
 
     // Low ruined wall behind the table: tall enough to read as architecture, short enough
     // to stay inside the frame of a 40 degree camera looking slightly down.
@@ -335,6 +440,7 @@ export class TableEngine {
       });
       col.position.set(Math.cos(a * TAU) * 13, 0, Math.sin(a * TAU) * 13);
       this.furniture.add(col);
+      this.addContactShadow(this.furniture, 1.1, 0.7, col.position.x, 0.012, col.position.z);
     }
 
     // Props are placed on a ring, tucked between seats so they never block a card.
@@ -354,15 +460,36 @@ export class TableEngine {
       prop.position.set(Math.cos(a) * rad, 0, Math.sin(a) * rad);
       prop.rotation.y = -a + 0.4;
       this.furniture.add(prop);
+      // World-space quad, not a child of the prop: a child inherits the prop's yaw and
+      // its shadow visibly floats above the floor.
+      this.addContactShadow(this.furniture, 1.5, 0.8, prop.position.x, 0.012, prop.position.z);
     }
 
-    // Candles: the only warm points in a night scene, and a scale reference.
+    // Candles: the only warm points in a night scene, and a scale reference. Their
+    // point lights stay weak on purpose — four strong ones would become four more key
+    // lights and undo the single-source contract.
     for (const t of [0.02, 0.27, 0.5, 0.735]) {
       const a = t * TAU;
-      const candle = makeCandle('#4a3a28', room.flame, 0.6);
+      const candle = makeCandle('#4a3a28', room.flame, 0.32);
       candle.position.set(Math.cos(a) * 6.9, 0, Math.sin(a) * 6.9);
       candle.visible = light.candles;
       this.furniture.add(candle);
+      this.addContactShadow(this.furniture, 0.6, 0.6, candle.position.x, 0.012, candle.position.z);
+      if (light.candles) {
+        // A point light alone leaves no mark on a matte floor; the warm pool is what
+        // actually tells the eye where the candle stands.
+        const pool = new THREE.Mesh(
+          new THREE.PlaneGeometry(4.4, 4.4),
+          new THREE.MeshBasicMaterial({
+            map: this.glowTex, color: 0xffb765, transparent: true, opacity: 0.3,
+            blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+          }),
+        );
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(candle.position.x, 0.018, candle.position.z);
+        pool.userData.sharedMap = true;
+        this.furniture.add(pool);
+      }
     }
 
     const lantern = makeLantern('#3a3024');
@@ -380,7 +507,7 @@ export class TableEngine {
     if (same) return;
 
     for (const rig of this.seats.values()) {
-      for (const obj of [rig.root, rig.hold, rig.ring, rig.glow]) {
+      for (const obj of [rig.root, rig.hold, rig.ring, rig.glow, rig.shadow]) {
         this.scene.remove(obj);
         disposeTree(obj);
       }
@@ -416,16 +543,47 @@ export class TableEngine {
       hold.rotation.y = Math.PI / 2 - a;
       this.scene.add(hold);
 
-      const front = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
-      const back = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
-      const edge = matte('#120d09', 0.95);
-      const card = new THREE.Mesh(new THREE.BoxGeometry(CARD_W, CARD_H, 0.035), [edge, edge, edge, edge, front, back]);
+      // Text is baked into the texture, so the artwork itself emits a little: without
+      // this the names disappear as soon as the room narrows its light at night.
+      const front = new THREE.MeshStandardMaterial({
+        roughness: 0.82, metalness: 0.04, emissive: 0xffffff, emissiveIntensity: 0.16,
+      });
+      const back = new THREE.MeshStandardMaterial({
+        roughness: 0.88, metalness: 0.06, emissive: 0xffffff, emissiveIntensity: 0.16,
+      });
+      const edge = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.62, metalness: 0.22 });
+      const card = new THREE.Mesh(
+        new THREE.BoxGeometry(CARD_W, CARD_H, 0.055),
+        [edge, edge, edge, edge, front, back],
+      );
       card.position.y = CARD_H / 2 + 0.02;
       card.castShadow = true;
       card.receiveShadow = true;
       card.userData = { kind: 'seat', id: p.id };
       hold.add(card);
       this.pickables.push(card);
+
+      // The BoxGeometry already carries six materials, including a printed back face.
+      // A separate solid back plate (as used in the prototype) would simply hide it, so
+      // the physicality here comes from the thick edge plus a wooden foot instead.
+      const foot = new THREE.Mesh(
+        new THREE.BoxGeometry(CARD_W * 1.08, 0.12, 0.3),
+        new THREE.MeshStandardMaterial({ color: 0x3b2d1e, roughness: 0.72, metalness: 0.16 }),
+      );
+      foot.position.set(0, 0.06, 0.02);
+      foot.castShadow = true;
+      foot.receiveShadow = true;
+      hold.add(foot);
+      const footLip = new THREE.Mesh(
+        new THREE.BoxGeometry(CARD_W * 1.09, 0.018, 0.31),
+        new THREE.MeshStandardMaterial({ color: 0x9a7845, metalness: 0.8, roughness: 0.4 }),
+      );
+      footLip.position.set(0, 0.128, 0.02);
+      hold.add(footLip);
+
+      // World-space quad: the holder tilts back 13°, so a child shadow would tilt with it
+      // and lift off the tabletop.
+      const shadow = this.addContactShadow(this.scene, 0.95, 0.7, cardX, TABLE_TOP + 0.008, cardZ);
 
       // Selection / state ring flat on the table under the card.
       const ring = new THREE.Mesh(
@@ -448,10 +606,10 @@ export class TableEngine {
       this.seats.set(p.id, {
         id: p.id, root, chair, card,
         cardMats: [front, back],
-        ring, glow, hold,
+        ring, glow, hold, shadow,
         hover: 0, lean: 0, lift: 0, dead: p.alive ? 0 : 1, face: 0,
         ringLevel: 0, targetable: p.targetable,
-        textureKey: '',
+        textureKey: '', angle: a,
       });
     });
   }
@@ -483,12 +641,13 @@ export class TableEngine {
         rig.textureKey = key;
         const front = makeCardFront({ name: p.name, seat: p.seat, alive: p.alive, host: p.host, you: p.you, ready: p.ready });
         const back = makeCardBack(p.seat, p.name);
-        for (const m of rig.cardMats) m.map?.dispose();
-        rig.cardMats[0].map = front;
-        rig.cardMats[1].map = back;
-        for (const m of rig.cardMats) {
-          m.needsUpdate = true;
-        }
+        const mats = rig.cardMats;
+        for (const m of mats) m.map?.dispose();
+        mats[0].map = front;
+        mats[0].emissiveMap = front;
+        mats[1].map = back;
+        mats[1].emissiveMap = back;
+        for (const m of mats) m.needsUpdate = true;
       }
     }
 
@@ -795,14 +954,14 @@ export class TableEngine {
       rig.lean += (leanTarget - rig.lean) * Math.min(1, dt * 8);
       rig.lift += (liftTarget - rig.lift) * Math.min(1, dt * 8);
 
-      // Name tents are flat plates, so a plate whose normal is perpendicular to the view
-      // degenerates into an unreadable sliver — on a six-seat table that is always two
-      // players, and you cannot tell who you are looking at. Turn each card toward the
-      // camera instead. The hold still owns position and tilt, so the tent stays on the
-      // rim and still leans back; only its yaw follows the viewer.
-      const dx = this.camera.position.x - rig.hold.position.x;
-      const dz = this.camera.position.z - rig.hold.position.z;
-      let want = Math.atan2(dx, dz) - rig.hold.rotation.y;
+      // Nine cards snapping to the camera reads as a row of billboards, not as people
+      // sitting around a table. Facing every card at the centre is physically right but
+      // makes the front row an unreadable sliver. The middle ground that survived review:
+      // face roughly the viewer, then fan by seat angle within ±18° so an orbit still
+      // changes the picture and all nine names stay legible.
+      const t = rig.angle - this.cam.az;
+      const fan = Math.sin(t) * 0.30 + Math.sin(rig.angle * 2) * 0.06;
+      let want = this.cam.az + fan - rig.hold.rotation.y;
       want = ((want + Math.PI) % TAU + TAU) % TAU - Math.PI; // shortest arc
       rig.face += (want - rig.face) * Math.min(1, dt * 5);
       rig.card.rotation.y = rig.face;
@@ -821,7 +980,7 @@ export class TableEngine {
 
       // Rings: selection is a warm ring, a ballot vote tints it.
       let ringTarget = 0;
-      let ringColor = GL.primary;
+      let ringColor: number = GL.primary;
       if (p.selected) ringTarget = 0.9;
       else if (p.vote === 'yes') {
         ringTarget = 0.75;
@@ -844,9 +1003,10 @@ export class TableEngine {
 
       // The card's own brightness tracks how lit it is: selected and speaking cards are
       // pulled toward the key light, dead ones fade into the table.
-      const emissive = 0.045 + (p.selected ? 0.075 : p.speaker ? 0.06 : 0);
+      // White, not gold: a gold emissive tints the printed name into a brass blur.
+      const emissive = 0.16 + (p.selected ? 0.10 : p.speaker ? 0.08 : 0);
       for (const m of rig.cardMats) {
-        m.emissive.setHex(GL.primary);
+        m.emissive.setHex(0xffffff);
         m.emissiveIntensity = emissive;
         m.opacity = 1;
         m.transparent = false;
@@ -924,6 +1084,9 @@ export class TableEngine {
     for (const rig of this.seats.values()) disposeTree(rig.root);
     this.seats.clear();
     disposeTree(this.scene);
+    this.aoTex.dispose();
+    this.glowTex.dispose();
+    this.grainTex.dispose();
     this.renderer.dispose();
   }
 }
@@ -944,7 +1107,9 @@ function disposeTree(obj: THREE.Object3D) {
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of mats) {
         const std = m as THREE.MeshStandardMaterial;
-        std.map?.dispose();
+        // AO and glow quads share textures owned by the engine. Disposing one here
+        // would blank every other shadow in the room.
+        if (!mesh.userData.sharedMap) std.map?.dispose();
         m.dispose();
       }
     }

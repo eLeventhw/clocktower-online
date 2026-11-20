@@ -28,7 +28,7 @@ export const ROOMS: RoomPreset[] = [
     stone: '#5a4732',
     wood: '#4c3a29',
     cloth: '#3a2d22',
-    flame: 'NC.primary',
+    flame: NC.primary,
   },
   {
     id: 'cellar',
@@ -84,8 +84,13 @@ export type PhaseKey = 'lobby' | 'night' | 'day' | 'ended';
 export type LightState = {
   key: number;
   keyIntensity: number;
+  /** Cone width of the one key light. Night narrows the cone instead of dimming the room. */
+  keyAngle: number;
   amb: number;
   ambIntensity: number;
+  /** Background colour of the fog and the clear colour. Previously read from a field
+   *  that did not exist, so the room fell back to a broken black. */
+  fog: number;
   fogDensity: number;
   /** Warm bounce colour for the rim of the table. */
   rim: number;
@@ -111,14 +116,16 @@ export function lightFor(room: RoomPreset, phase: PhaseKey): LightState {
   if (phase === 'night') {
     return {
       key: 0x9fb2e0,
-      keyIntensity: 1.6,
+      keyIntensity: 2.8,
+      keyAngle: 0.34,
       amb: 0x161c2e,
-      ambIntensity: 0.26,
-      fogDensity: 0.033,
+      ambIntensity: 0.20,
+      fog: 0x06070c,
+      fogDensity: 0.032,
       rim: 0x6d7fa8,
       candles: true,
       lamp: 0xffcf9a,
-      lampIntensity: 4.2,
+      lampIntensity: 3.6,
     };
   }
   if (phase === 'day') {
@@ -127,23 +134,27 @@ export function lightFor(room: RoomPreset, phase: PhaseKey): LightState {
       // cast a cold blue "day", which read as a floodlit stage at night rather than as
       // morning; the room still keeps its identity through floor, stone and wood colour.
       key: 0xffe9cb,
-      keyIntensity: 2.6,
+      keyIntensity: 5.6,
+      keyAngle: 0.50,
       amb: room.amb,
-      ambIntensity: 0.5,
-      fogDensity: 0.014,
+      ambIntensity: 0.32,
+      fog: room.fog,
+      fogDensity: 0.010,
       rim: 0xffd8a2,
       candles: false,
       lamp: 0xffd8a2,
-      lampIntensity: 1.0,
+      lampIntensity: 0.8,
     };
   }
   if (phase === 'ended') {
     return {
       key: 0xb9a98f,
-      keyIntensity: 2.2,
+      keyIntensity: 3.4,
+      keyAngle: 0.44,
       amb: 0x33302b,
-      ambIntensity: 0.6,
-      fogDensity: 0.02,
+      ambIntensity: 0.32,
+      fog: 0x1a1815,
+      fogDensity: 0.024,
       rim: 0x9a8f7d,
       candles: false,
       lamp: 0xd8c8ae,
@@ -153,13 +164,15 @@ export function lightFor(room: RoomPreset, phase: PhaseKey): LightState {
   // lobby
   return {
     key: room.key,
-    keyIntensity: 2.4,
+    keyIntensity: 4.4,
+    keyAngle: 0.46,
     amb: room.amb,
-    ambIntensity: 0.58,
-    fogDensity: 0.03,
+    ambIntensity: 0.24,
+    fog: room.fog,
+    fogDensity: 0.028,
     rim: 0xd8c39c,
     candles: true,
     lamp: 0xffcf9a,
-    lampIntensity: 2.4,
+    lampIntensity: 1.8,
   };
 }
